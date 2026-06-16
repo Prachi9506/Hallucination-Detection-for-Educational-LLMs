@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HalluciDetect — Results Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f8f8f6;
+    --surface: #ffffff;
+    --surface2: #f2f1ec;
+    --border: rgba(0,0,0,0.09);
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #9a9a96;
+    --blue: #2a6fcf;
+    --blue-bg: #e8f1fb;
+    --blue-text: #0d3d7a;
+    --red: #d64040;
+    --red-bg: #fceaea;
+    --red-text: #7a1e1e;
+    --green: #4a8c1c;
+    --green-bg: #eaf2de;
+    --green-text: #2a5210;
+    --amber: #b06a10;
+    --amber-bg: #faecd8;
+    --amber-text: #5c3606;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+  .layout { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
+
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border);
+              padding: 0; display: flex; flex-direction: column; position: sticky;
+              top: 0; height: 100vh; overflow: hidden; }
+  .brand { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
+  .brand-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex;
+                 align-items: center; gap: 8px; }
+  .brand-name .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+  .brand-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
+  .nav-section { font-size: 10px; color: var(--text3); padding: 10px 10px 4px;
+                  text-transform: uppercase; letter-spacing: .07em; font-weight: 500; }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+               font-size: 13px; color: var(--text2); cursor: pointer;
+               border-radius: var(--radius-sm); border: none; background: none;
+               width: 100%; text-align: left; transition: all 0.1s; }
+  .nav-item svg { flex-shrink: 0; opacity: .7; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--blue-bg); color: var(--blue-text); font-weight: 500; }
+  .nav-item.active svg { opacity: 1; color: var(--blue); }
+  .sidebar-footer { padding: 14px 18px; border-top: 1px solid var(--border);
+                     font-size: 11px; color: var(--text3); }
+
+  .main { display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border);
+             padding: 14px 28px; display: flex; justify-content: space-between; align-items: center;
+             position: sticky; top: 0; z-index: 10; }
+  .topbar-left h1 { font-size: 16px; font-weight: 600; }
+  .topbar-left p  { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+             border-radius: 20px; background: var(--green-bg); color: var(--green-text);
+             font-size: 12px; font-weight: 500; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .content { padding: 24px 28px; flex: 1; }
+  .pane { display: none; } .pane.active { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--border);
+           border-radius: var(--radius); padding: 18px 20px; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--text2);
+                 text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .metric { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .metric .icon { font-size: 18px; margin-bottom: 6px; }
+  .metric .val { font-size: 24px; font-weight: 600; color: var(--text); }
+  .metric .lbl { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .metric .sub  { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .bar-lbl { font-size: 12px; color: var(--text2); width: 52px; flex-shrink: 0; }
+  .bar-lbl-lg { width: 110px; }
+  .bar-track { flex: 1; height: 14px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 4px; transition: width .3s; }
+  .bar-val   { font-size: 12px; font-weight: 500; color: var(--text); width: 42px; text-align: right; }
+
+  .cm { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: center; }
+  .cm-hdr { font-size: 11px; font-weight: 500; color: var(--text2); text-align: center; }
+  .cm-axv { font-size: 11px; color: var(--text2); writing-mode: vertical-lr;
+             transform: rotate(180deg); text-align: center; }
+  .cm-cell { border-radius: 8px; padding: 10px 8px; text-align: center; }
+  .cm-val { font-size: 20px; font-weight: 600; }
+  .cm-desc { font-size: 10px; margin-top: 2px; font-weight: 500; }
+
+  .thr-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 12px 0; }
+  .thr-stat { background: var(--surface2); border-radius: var(--radius-sm); padding: 12px;
+               text-align: center; }
+  .thr-stat .sv { font-size: 22px; font-weight: 600; }
+  .thr-stat .sl { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--blue); }
+
+  /* ── features ── */
+  .feat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .feat-nm { font-size: 12px; color: var(--text2); width: 130px; flex-shrink: 0;
+              font-family: 'SF Mono', 'Fira Code', monospace; }
+  .feat-track { flex: 1; height: 12px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .feat-fill  { height: 100%; border-radius: 3px; }
+
+  /* ── pipeline ── */
+  .step { display: flex; gap: 12px; margin-bottom: 14px; }
+  .step-n { width: 26px; height: 26px; border-radius: 50%; background: var(--blue-bg);
+             color: var(--blue-text); font-size: 12px; font-weight: 600; display: flex;
+             align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .step-body { font-size: 13px; color: var(--text); line-height: 1.5; }
+  .step-body small { display: block; font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .info-row { display: flex; justify-content: space-between; align-items: center;
+               padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .k { color: var(--text2); }
+  .info-row .v { font-weight: 500; }
+
+  /* ── tags ── */
+  .tag { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 9px;
+          border-radius: 5px; margin: 2px; }
+  .t-blue  { background: var(--blue-bg);  color: var(--blue-text); }
+  .t-green { background: var(--green-bg); color: var(--green-text); }
+  .t-amber { background: var(--amber-bg); color: var(--amber-text); }
+  .t-red   { background: var(--red-bg);   color: var(--red-text); }
+
+  /* ── legend ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px;
+             font-size: 12px; color: var(--text2); }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend .sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .note { font-size: 12px; color: var(--text2); line-height: 1.55; margin-top: 10px; }
+  .chart-wrap { position: relative; width: 100%; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name"><div class="dot"></div>HalluciDetect</div>
+      <div class="brand-sub">Educational LLM Guard</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Analysis</div>
+      <button class="nav-item active" onclick="nav('overview',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" onclick="nav('data',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+        Data analysis
+      </button>
+      <button class="nav-item" onclick="nav('performance',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+        Performance
+      </button>
+      <div class="nav-section">Tools</div>
+      <button class="nav-item" onclick="nav('threshold',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>
+        Threshold tuner
+      </button>
+      <button class="nav-item" onclick="nav('features',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.5" fill="currentColor"/><circle cx="3.5" cy="12" r="1.5" fill="currentColor"/><circle cx="3.5" cy="18" r="1.5" fill="currentColor"/></svg>
+        Features
+      </button>
+      <button class="nav-item" onclick="nav('pipeline',this)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+        Pipeline
+      </button>
+    </nav>
+    <div class="sidebar-footer">v2.0 &nbsp;·&nbsp; Logistic Regression</div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Overview</h1>
+        <p id="page-sub">5-fold CV &nbsp;·&nbsp; 16,687 train &nbsp;·&nbsp; 11,125 test</p>
+      </div>
+      <div class="status"><div class="status-dot"></div>Model trained</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ══ OVERVIEW ══ -->
+      <div id="pane-overview" class="pane active">
+        <div class="grid-4" id="kpi-grid"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">fold-by-fold ROC-AUC</div>
+            <div id="fold-bars"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">confusion matrix &nbsp;<span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text3)">OOF · threshold <span id="cm-thr-label"></span></span></div>
+            <div class="cm">
+              <div></div><div class="cm-hdr">pred 0</div><div class="cm-hdr">pred 1</div>
+              <div class="cm-axv">actual 0</div>
+              <div class="cm-cell" style="background:var(--green-bg)"><div class="cm-val" style="color:var(--green-text)" id="ov-tn"></div><div class="cm-desc" style="color:var(--green)">TN</div></div>
+              <div class="cm-cell" style="background:var(--amber-bg)"><div class="cm-val" style="color:var(--amber-text)" id="ov-fp"></div><div class="cm-desc" style="color:var(--amber)">FP</div></div>
+              <div class="cm-axv">actual 1</div>
+              <div class="cm-cell" style="background:var(--red-bg)"><div class="cm-val" style="color:var(--red-text)" id="ov-fn"></div><div class="cm-desc" style="color:var(--red)">FN</div></div>
+              <div class="cm-cell" style="background:var(--blue-bg)"><div class="cm-val" style="color:var(--blue-text)" id="ov-tp"></div><div class="cm-desc" style="color:var(--blue)">TP</div></div>
+            </div>
+            <p class="note" id="cm-note"></p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">test set prediction breakdown</div>
+          <div style="display:flex;gap:24px;align-items:flex-end">
+            <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">correct</div><div id="test-correct" style="font-size:26px;font-weight:600;color:var(--green)"></div></div>
+            <div style="flex:1">
+              <div style="height:20px;border-radius:6px;overflow:hidden;display:flex;margin-bottom:6px" id="test-bar"></div>
+              <div class="legend" id="test-legend"></div>
+            </div>
+            <div style="text-align:right"><div style="font-size:11px;color:var(--text2);margin-bottom:4px">hallucination</div><div id="test-hall" style="font-size:26px;font-weight:600;color:var(--red)"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ DATA ANALYSIS ══ -->
+      <div id="pane-data" class="pane">
+        <div class="grid-3" id="eda-kpis"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">answer word count distribution</div>
+            <div class="legend">
+              <span><div class="sq" style="background:#2a6fcf"></div>correct</span>
+              <span><div class="sq" style="background:#d64040"></div>hallucination</span>
+            </div>
+            <div class="chart-wrap" style="height:200px"><canvas id="histChart" role="img" aria-label="Histogram comparing word count for correct vs hallucination answers">Word count distribution.</canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">key statistics by class</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:500">word count</div>
+            <div id="stat-bars"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">class imbalance</div>
+          <div class="chart-wrap" style="height:120px"><canvas id="classChart" role="img" aria-label="Bar chart showing 15793 correct vs 894 hallucination samples">Class distribution.</canvas></div>
+        </div>
+      </div>
+
+      <!-- ══ PERFORMANCE ══ -->
+      <div id="pane-performance" class="pane">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">ROC curve — OOF</div>
+            <div class="chart-wrap" style="height:230px"><canvas id="rocChart" role="img" aria-label="ROC curve">ROC curve.</canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">precision-recall curve — OOF</div>
+            <div class="chart-wrap" style="height:230px"><canvas id="prChart" role="img" aria-label="Precision recall curve">PR curve.</canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">per-fold metrics</div>
+          <div class="legend">
+            <span><div class="sq" style="background:#2a6fcf"></div>ROC-AUC</span>
+            <span><div class="sq" style="background:#d64040"></div>F1</span>
+            <span><div class="sq" style="background:#4a8c1c"></div>avg precision</span>
+          </div>
+          <div class="chart-wrap" style="height:150px"><canvas id="foldChart" role="img" aria-label="Per fold grouped bar chart">Per fold.</canvas></div>
+        </div>
+      </div>
+
+      <!-- ══ THRESHOLD ══ -->
+      <div id="pane-threshold" class="pane">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title">decision threshold tuner</div>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">
+            <span style="font-size:13px;color:var(--text2);white-space:nowrap">threshold</span>
+            <input type="range" min="0.05" max="0.95" step="0.005" id="thrSlider" value="0.72">
+            <span style="font-size:16px;font-weight:600;min-width:40px;text-align:right" id="thrVal">0.72</span>
+          </div>
+          <div class="thr-stats">
+            <div class="thr-stat"><div class="sv" id="tF1" style="color:var(--blue)"></div><div class="sl">F1</div></div>
+            <div class="thr-stat"><div class="sv" id="tPrec" style="color:var(--green)"></div><div class="sl">precision</div></div>
+            <div class="thr-stat"><div class="sv" id="tRec" style="color:var(--red)"></div><div class="sl">recall</div></div>
+          </div>
+          <div class="chart-wrap" style="height:200px"><canvas id="thrChart" role="img" aria-label="F1 precision recall vs threshold">Threshold sweep.</canvas></div>
+          <p class="note">Optimal threshold maximises F1 on OOF predictions. Drag to explore the precision-recall trade-off live.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">live confusion matrix</div>
+          <div class="cm">
+            <div></div><div class="cm-hdr">pred 0</div><div class="cm-hdr">pred 1</div>
+            <div class="cm-axv">actual 0</div>
+            <div class="cm-cell" style="background:var(--green-bg)"><div class="cm-val" style="color:var(--green-text)" id="liveTN"></div><div class="cm-desc" style="color:var(--green)">TN</div></div>
+            <div class="cm-cell" style="background:var(--amber-bg)"><div class="cm-val" style="color:var(--amber-text)" id="liveFP"></div><div class="cm-desc" style="color:var(--amber)">FP</div></div>
+            <div class="cm-axv">actual 1</div>
+            <div class="cm-cell" style="background:var(--red-bg)"><div class="cm-val" style="color:var(--red-text)" id="liveFN"></div><div class="cm-desc" style="color:var(--red)">FN</div></div>
+            <div class="cm-cell" style="background:var(--blue-bg)"><div class="cm-val" style="color:var(--blue-text)" id="liveTP"></div><div class="cm-desc" style="color:var(--blue)">TP</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ FEATURES ══ -->
+      <div id="pane-features" class="pane">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">feature set composition</div>
+            <div class="legend">
+              <span><div class="sq" style="background:#2a6fcf"></div>char n-grams (4,000)</span>
+              <span><div class="sq" style="background:#888880"></div>word n-grams (3,000)</span>
+              <span><div class="sq" style="background:#4a8c1c"></div>engineered (17)</span>
+            </div>
+            <div class="chart-wrap" style="height:200px"><canvas id="featDonut" role="img" aria-label="Donut chart of feature composition">Feature sets.</canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">engineered feature importance</div>
+            <div id="feat-bars"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">ablation study — ROC-AUC by feature set</div>
+          <div class="chart-wrap" style="height:160px"><canvas id="ablChart" role="img" aria-label="Ablation study horizontal bar chart">Ablation.</canvas></div>
+          <p class="note">Character n-grams alone account for nearly all discriminative power. Each additional layer adds consistent marginal improvement.</p>
+        </div>
+      </div>
+
+      <!-- ══ PIPELINE ══ -->
+      <div id="pane-pipeline" class="pane">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">pipeline steps</div>
+            <div id="pipeline-steps"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">model configuration</div>
+            <div id="model-config"></div>
+            <div style="margin-top:18px" class="card-title">publication targets</div>
+            <div style="margin-top:6px">
+              <span class="tag t-blue">EDM / AIED</span>
+              <span class="tag t-amber">EMNLP Findings</span>
+              <span class="tag t-green">BEA @ ACL</span>
+              <span class="tag t-red">ACL Student</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const R = {"oof_roc_auc": 0.793567216297085, "oof_roc_std": 0.010289209265038114, "oof_avg_precision": 0.22592373686826467, "oof_f1_optimal": 0.2733367710344678, "optimal_threshold": 0.7250000000000003, "confusion_matrix": {"TN": 15013, "FP": 780, "FN": 629, "TP": 265}, "fold_stats": [{"fold": 1, "roc_auc": 0.7940176245576618, "f1": 0.247074122236671, "avg_precision": 0.25508158888769533}, {"fold": 2, "roc_auc": 0.8044082615777215, "f1": 0.2885714285714286, "avg_precision": 0.22850867095425026}, {"fold": 3, "roc_auc": 0.7957743347880676, "f1": 0.26884422110552764, "avg_precision": 0.2505569465459052}, {"fold": 4, "roc_auc": 0.7747204050367781, "f1": 0.2362002567394095, "avg_precision": 0.20175955768139966}, {"fold": 5, "roc_auc": 0.8007950014329132, "f1": 0.27040816326530615, "avg_precision": 0.22948103973900685}], "pr_curve": [{"threshold": 0.0, "precision": 0.0536, "recall": 1.0}, {"threshold": 0.0046, "precision": 0.0545, "recall": 1.0}, {"threshold": 0.0074, "precision": 0.0554, "recall": 1.0}, {"threshold": 0.0102, "precision": 0.0562, "recall": 0.9978}, {"threshold": 0.013, "precision": 0.057, "recall": 0.9944}, {"threshold": 0.0156, "precision": 0.058, "recall": 0.9933}, {"threshold": 0.0183, "precision": 0.0589, "recall": 0.9911}, {"threshold": 0.0213, "precision": 0.06, "recall": 0.9899}, {"threshold": 0.0245, "precision": 0.0609, "recall": 0.9866}, {"threshold": 0.0277, "precision": 0.0619, "recall": 0.9843}, {"threshold": 0.0314, "precision": 0.063, "recall": 0.9821}, {"threshold": 0.0349, "precision": 0.0642, "recall": 0.981}, {"threshold": 0.0389, "precision": 0.0652, "recall": 0.9765}, {"threshold": 0.0424, "precision": 0.0666, "recall": 0.9754}, {"threshold": 0.0459, "precision": 0.0675, "recall": 0.9687}, {"threshold": 0.0506, "precision": 0.0689, "recall": 0.9664}, {"threshold": 0.0545, "precision": 0.0701, "recall": 0.9609}, {"threshold": 0.0587, "precision": 0.0714, "recall": 0.9564}, {"threshold": 0.0633, "precision": 0.0729, "recall": 0.953}, {"threshold": 0.0686, "precision": 0.0743, "recall": 0.9485}, {"threshold": 0.0737, "precision": 0.0758, "recall": 0.9441}, {"threshold": 0.0794, "precision": 0.077, "recall": 0.9351}, {"threshold": 0.0856, "precision": 0.0783, "recall": 0.9273}, {"threshold": 0.0919, "precision": 0.08, "recall": 0.9217}, {"threshold": 0.0981, "precision": 0.0818, "recall": 0.9172}, {"threshold": 0.1049, "precision": 0.0838, "recall": 0.9139}, {"threshold": 0.1125, "precision": 0.0853, "recall": 0.9049}, {"threshold": 0.1199, "precision": 0.0872, "recall": 0.8982}, {"threshold": 0.1279, "precision": 0.0894, "recall": 0.8926}, {"threshold": 0.1372, "precision": 0.0912, "recall": 0.8814}, {"threshold": 0.1464, "precision": 0.0933, "recall": 0.8725}, {"threshold": 0.1551, "precision": 0.0955, "recall": 0.8624}, {"threshold": 0.1653, "precision": 0.098, "recall": 0.8546}, {"threshold": 0.1751, "precision": 0.1004, "recall": 0.8445}, {"threshold": 0.1858, "precision": 0.1027, "recall": 0.8322}, {"threshold": 0.1975, "precision": 0.1057, "recall": 0.8244}, {"threshold": 0.2107, "precision": 0.108, "recall": 0.8087}, {"threshold": 0.2237, "precision": 0.1103, "recall": 0.7919}, {"threshold": 0.238, "precision": 0.1137, "recall": 0.7819}, {"threshold": 0.2526, "precision": 0.1177, "recall": 0.7729}, {"threshold": 0.2704, "precision": 0.121, "recall": 0.7573}, {"threshold": 0.288, "precision": 0.124, "recall": 0.7383}, {"threshold": 0.3095, "precision": 0.1284, "recall": 0.7248}, {"threshold": 0.3321, "precision": 0.1318, "recall": 0.7036}, {"threshold": 0.3545, "precision": 0.1359, "recall": 0.6834}, {"threshold": 0.3781, "precision": 0.1393, "recall": 0.6577}, {"threshold": 0.4045, "precision": 0.1435, "recall": 0.6331}, {"threshold": 0.4293, "precision": 0.1511, "recall": 0.6197}, {"threshold": 0.4514, "precision": 0.1578, "recall": 0.5984}, {"threshold": 0.4818, "precision": 0.1651, "recall": 0.5749}, {"threshold": 0.5075, "precision": 0.1719, "recall": 0.5459}, {"threshold": 0.541, "precision": 0.1756, "recall": 0.5034}, {"threshold": 0.5673, "precision": 0.1829, "recall": 0.4676}, {"threshold": 0.5899, "precision": 0.1917, "recall": 0.4306}, {"threshold": 0.6152, "precision": 0.2031, "recall": 0.3937}, {"threshold": 0.6558, "precision": 0.2148, "recall": 0.3501}, {"threshold": 0.7024, "precision": 0.2371, "recall": 0.3132}, {"threshold": 0.7555, "precision": 0.2652, "recall": 0.2685}, {"threshold": 0.8182, "precision": 0.3023, "recall": 0.2103}, {"threshold": 0.884, "precision": 0.3669, "recall": 0.1387}, {"threshold": 0.9832, "precision": 0.7, "recall": 0.047}], "roc_curve": [{"fpr": 0.0, "tpr": 0.0}, {"fpr": 0.0017, "tpr": 0.0638}, {"fpr": 0.0039, "tpr": 0.0817}, {"fpr": 0.0074, "tpr": 0.0996}, {"fpr": 0.0108, "tpr": 0.1186}, {"fpr": 0.013, "tpr": 0.1365}, {"fpr": 0.0158, "tpr": 0.1566}, {"fpr": 0.0186, "tpr": 0.1723}, {"fpr": 0.0234, "tpr": 0.1879}, {"fpr": 0.0271, "tpr": 0.2069}, {"fpr": 0.0327, "tpr": 0.2315}, {"fpr": 0.0383, "tpr": 0.2472}, {"fpr": 0.0413, "tpr": 0.2629}, {"fpr": 0.0458, "tpr": 0.2808}, {"fpr": 0.0497, "tpr": 0.2964}, {"fpr": 0.0553, "tpr": 0.3121}, {"fpr": 0.0621, "tpr": 0.3289}, {"fpr": 0.0714, "tpr": 0.3434}, {"fpr": 0.0776, "tpr": 0.3591}, {"fpr": 0.0818, "tpr": 0.377}, {"fpr": 0.0892, "tpr": 0.3937}, {"fpr": 0.0952, "tpr": 0.4128}, {"fpr": 0.1032, "tpr": 0.4306}, {"fpr": 0.1104, "tpr": 0.4474}, {"fpr": 0.1163, "tpr": 0.4631}, {"fpr": 0.1211, "tpr": 0.4776}, {"fpr": 0.128, "tpr": 0.4933}, {"fpr": 0.1342, "tpr": 0.5067}, {"fpr": 0.1392, "tpr": 0.5224}, {"fpr": 0.1443, "tpr": 0.5391}, {"fpr": 0.1521, "tpr": 0.5548}, {"fpr": 0.1625, "tpr": 0.5727}, {"fpr": 0.1742, "tpr": 0.5895}, {"fpr": 0.1848, "tpr": 0.604}, {"fpr": 0.1965, "tpr": 0.6186}, {"fpr": 0.2114, "tpr": 0.632}, {"fpr": 0.2266, "tpr": 0.6499}, {"fpr": 0.2339, "tpr": 0.6667}, {"fpr": 0.2449, "tpr": 0.6812}, {"fpr": 0.2582, "tpr": 0.6946}, {"fpr": 0.2685, "tpr": 0.7103}, {"fpr": 0.2813, "tpr": 0.726}, {"fpr": 0.2968, "tpr": 0.7416}, {"fpr": 0.3112, "tpr": 0.7562}, {"fpr": 0.3231, "tpr": 0.7707}, {"fpr": 0.3537, "tpr": 0.7852}, {"fpr": 0.3671, "tpr": 0.7998}, {"fpr": 0.3865, "tpr": 0.8143}, {"fpr": 0.4068, "tpr": 0.83}, {"fpr": 0.427, "tpr": 0.8434}, {"fpr": 0.4572, "tpr": 0.8568}, {"fpr": 0.4758, "tpr": 0.8714}, {"fpr": 0.4995, "tpr": 0.8826}, {"fpr": 0.5183, "tpr": 0.8937}, {"fpr": 0.5516, "tpr": 0.9072}, {"fpr": 0.5994, "tpr": 0.9217}, {"fpr": 0.6333, "tpr": 0.934}, {"fpr": 0.6687, "tpr": 0.9485}, {"fpr": 0.7089, "tpr": 0.9575}, {"fpr": 0.7395, "tpr": 0.9664}, {"fpr": 0.7735, "tpr": 0.9754}, {"fpr": 0.845, "tpr": 0.9855}, {"fpr": 0.9485, "tpr": 0.9989}], "threshold_sweep": [{"threshold": 0.05, "f1": 0.1282, "precision": 0.0687, "recall": 0.9664, "tp": 864, "fp": 11719, "fn": 30, "tn": 4074}, {"threshold": 0.075, "f1": 0.141, "precision": 0.0762, "recall": 0.943, "tp": 843, "fp": 10219, "fn": 51, "tn": 5574}, {"threshold": 0.1, "f1": 0.1511, "precision": 0.0823, "recall": 0.9161, "tp": 819, "fp": 9129, "fn": 75, "tn": 6664}, {"threshold": 0.125, "f1": 0.1613, "precision": 0.0886, "recall": 0.8949, "tp": 800, "fp": 8228, "fn": 94, "tn": 7565}, {"threshold": 0.15, "f1": 0.1701, "precision": 0.0943, "recall": 0.8702, "tp": 778, "fp": 7474, "fn": 116, "tn": 8319}, {"threshold": 0.175, "f1": 0.1793, "precision": 0.1003, "recall": 0.8445, "tp": 755, "fp": 6771, "fn": 139, "tn": 9022}, {"threshold": 0.2, "f1": 0.1875, "precision": 0.1058, "recall": 0.8199, "tp": 733, "fp": 6193, "fn": 161, "tn": 9600}, {"threshold": 0.225, "f1": 0.1941, "precision": 0.1106, "recall": 0.7908, "tp": 707, "fp": 5685, "fn": 187, "tn": 10108}, {"threshold": 0.25, "f1": 0.2036, "precision": 0.1172, "recall": 0.7752, "tp": 693, "fp": 5222, "fn": 201, "tn": 10571}, {"threshold": 0.275, "f1": 0.2092, "precision": 0.1215, "recall": 0.7506, "tp": 671, "fp": 4851, "fn": 223, "tn": 10942}, {"threshold": 0.3, "f1": 0.2157, "precision": 0.1266, "recall": 0.7304, "tp": 653, "fp": 4507, "fn": 241, "tn": 11286}, {"threshold": 0.325, "f1": 0.2208, "precision": 0.1307, "recall": 0.7092, "tp": 634, "fp": 4215, "fn": 260, "tn": 11578}, {"threshold": 0.35, "f1": 0.2249, "precision": 0.1345, "recall": 0.6846, "tp": 612, "fp": 3937, "fn": 282, "tn": 11856}, {"threshold": 0.375, "f1": 0.2299, "precision": 0.1392, "recall": 0.6611, "tp": 591, "fp": 3656, "fn": 303, "tn": 12137}, {"threshold": 0.4, "f1": 0.2325, "precision": 0.1423, "recall": 0.6342, "tp": 567, "fp": 3417, "fn": 327, "tn": 12376}, {"threshold": 0.425, "f1": 0.2414, "precision": 0.1498, "recall": 0.6219, "tp": 556, "fp": 3156, "fn": 338, "tn": 12637}, {"threshold": 0.45, "f1": 0.2502, "precision": 0.158, "recall": 0.6007, "tp": 537, "fp": 2861, "fn": 357, "tn": 12932}, {"threshold": 0.475, "f1": 0.2544, "precision": 0.1629, "recall": 0.5794, "tp": 518, "fp": 2661, "fn": 376, "tn": 13132}, {"threshold": 0.5, "f1": 0.2618, "precision": 0.1708, "recall": 0.5604, "tp": 501, "fp": 2433, "fn": 393, "tn": 13360}, {"threshold": 0.525, "f1": 0.2619, "precision": 0.1744, "recall": 0.5257, "tp": 470, "fp": 2225, "fn": 424, "tn": 13568}, {"threshold": 0.55, "f1": 0.2625, "precision": 0.1791, "recall": 0.4911, "tp": 439, "fp": 2012, "fn": 455, "tn": 13781}, {"threshold": 0.575, "f1": 0.2608, "precision": 0.1835, "recall": 0.4508, "tp": 403, "fp": 1793, "fn": 491, "tn": 14000}, {"threshold": 0.6, "f1": 0.2662, "precision": 0.1957, "recall": 0.4161, "tp": 372, "fp": 1529, "fn": 522, "tn": 14264}, {"threshold": 0.625, "f1": 0.2683, "precision": 0.2063, "recall": 0.3837, "tp": 343, "fp": 1320, "fn": 551, "tn": 14473}, {"threshold": 0.65, "f1": 0.2661, "precision": 0.2129, "recall": 0.3546, "tp": 317, "fp": 1172, "fn": 577, "tn": 14621}, {"threshold": 0.675, "f1": 0.2665, "precision": 0.2211, "recall": 0.3356, "tp": 300, "fp": 1057, "fn": 594, "tn": 14736}, {"threshold": 0.7, "f1": 0.2701, "precision": 0.2362, "recall": 0.3154, "tp": 282, "fp": 912, "fn": 612, "tn": 14881}, {"threshold": 0.725, "f1": 0.2733, "precision": 0.2536, "recall": 0.2964, "tp": 265, "fp": 780, "fn": 629, "tn": 15013}, {"threshold": 0.75, "f1": 0.2677, "precision": 0.2626, "recall": 0.2729, "tp": 244, "fp": 685, "fn": 650, "tn": 15108}, {"threshold": 0.775, "f1": 0.2561, "precision": 0.2684, "recall": 0.245, "tp": 219, "fp": 597, "fn": 675, "tn": 15196}, {"threshold": 0.8, "f1": 0.2508, "precision": 0.2853, "recall": 0.2237, "tp": 200, "fp": 501, "fn": 694, "tn": 15292}, {"threshold": 0.825, "f1": 0.2455, "precision": 0.3065, "recall": 0.2047, "tp": 183, "fp": 414, "fn": 711, "tn": 15379}, {"threshold": 0.85, "f1": 0.2398, "precision": 0.3347, "recall": 0.1868, "tp": 167, "fp": 332, "fn": 727, "tn": 15461}, {"threshold": 0.875, "f1": 0.2166, "precision": 0.3509, "recall": 0.1566, "tp": 140, "fp": 259, "fn": 754, "tn": 15534}, {"threshold": 0.9, "f1": 0.1783, "precision": 0.408, "recall": 0.1141, "tp": 102, "fp": 148, "fn": 792, "tn": 15645}, {"threshold": 0.925, "f1": 0.1503, "precision": 0.4402, "recall": 0.0906, "tp": 81, "fp": 103, "fn": 813, "tn": 15690}], "eda": {"class_dist": {"0": 15793, "1": 894}, "ans_words_mean": {"0": 58.9, "1": 101.5}, "ans_words_median": {"0": 23.0, "1": 17.0}, "ans_len_mean": {"0": 346.3, "1": 620.7}, "rep_mean": {"0": 0.2818, "1": 0.3786}, "word_hist_0": {"counts": [6772, 2286, 1136, 1046, 895, 755, 585, 415, 285, 250, 173, 169, 132, 147, 747], "edges": [0.0, 16.7, 33.3, 50.0, 66.7, 83.3, 100.0, 116.7, 133.3, 150.0, 166.7, 183.3, 200.0, 216.7, 233.3, 250.0]}, "word_hist_1": {"counts": [446, 51, 17, 31, 22, 51, 22, 18, 14, 8, 15, 12, 14, 14, 159], "edges": [0.0, 16.7, 33.3, 50.0, 66.7, 83.3, 100.0, 116.7, 133.3, 150.0, 166.7, 183.3, 200.0, 216.7, 233.3, 250.0]}}, "test": {"total": 11125, "hallucinations": 727, "rate": 0.06534831460674158}, "feature_counts": {"char_ngrams": 4000, "word_ngrams": 3000, "engineered": 17, "total": 7017}};
+
+const pageMeta = {
+  overview:    ['Overview',          '5-fold CV · 16,687 train · 11,125 test'],
+  data:        ['Data analysis',     'EDA · class distribution · feature statistics'],
+  performance: ['Performance',       'ROC curve · PR curve · fold breakdown'],
+  threshold:   ['Threshold tuner',   'Optimise the decision boundary interactively'],
+  features:    ['Feature analysis',  'Importance · ablation · composition'],
+  pipeline:    ['Pipeline',          'Architecture · hyperparameters · configuration'],
+};
+
+function nav(id, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('pane-' + id).classList.add('active');
+  document.getElementById('page-title').textContent = pageMeta[id][0];
+  document.getElementById('page-sub').textContent   = pageMeta[id][1];
+  if (id === 'performance' && !window._perf)   { drawPerf();      window._perf = true; }
+  if (id === 'threshold'   && !window._thr)    { drawThr();       window._thr  = true; }
+  if (id === 'features'    && !window._feat)   { drawFeatures();  window._feat = true; }
+}
+
+function fmt(n, dec=3) { return parseFloat(n).toFixed(dec); }
+function fmtInt(n) { return parseInt(n).toLocaleString(); }
+
+// ── Overview ──────────────────────────────────────────────────────
+const cm = R.confusion_matrix;
+const prec = cm.TP / (cm.TP + cm.FP + 1e-9);
+const rec  = cm.TP / (cm.TP + cm.FN + 1e-9);
+const acc  = (cm.TN + cm.TP) / (cm.TN + cm.FP + cm.FN + cm.TP);
+
+document.getElementById('kpi-grid').innerHTML = `
+  <div class="metric"><div class="val">${fmt(R.oof_roc_auc)}</div><div class="lbl">ROC-AUC</div><div class="sub">±${fmt(R.oof_roc_std,3)} · 5 folds</div></div>
+  <div class="metric"><div class="val">${fmt(R.oof_f1_optimal)}</div><div class="lbl">F1 score</div><div class="sub">thresh ${fmt(R.optimal_threshold,2)}</div></div>
+  <div class="metric"><div class="val">${fmtInt(R.test.hallucinations)}</div><div class="lbl">flagged hallucinations</div><div class="sub">of ${fmtInt(R.test.total)} test</div></div>
+  <div class="metric"><div class="val">${fmtInt(R.feature_counts.total)}</div><div class="lbl">total features</div><div class="sub">3 feature sets</div></div>
+`;
+
+const foldBarsEl = document.getElementById('fold-bars');
+R.fold_stats.forEach(f => {
+  const pct = (f.roc_auc * 100).toFixed(1);
+  foldBarsEl.innerHTML += `<div class="bar-row"><div class="bar-lbl">fold ${f.fold}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:#2a6fcf"></div></div><div class="bar-val">${fmt(f.roc_auc)}</div></div>`;
+});
+foldBarsEl.innerHTML += `<p class="note" style="margin-top:6px">mean ${fmt(R.oof_roc_auc)} ± ${fmt(R.oof_roc_std,3)}</p>`;
+
+document.getElementById('cm-thr-label').textContent = fmt(R.optimal_threshold, 2);
+document.getElementById('ov-tn').textContent = fmtInt(cm.TN);
+document.getElementById('ov-fp').textContent = fmtInt(cm.FP);
+document.getElementById('ov-fn').textContent = fmtInt(cm.FN);
+document.getElementById('ov-tp').textContent = fmtInt(cm.TP);
+document.getElementById('cm-note').textContent =
+  `precision ${fmt(prec,2)} · recall ${fmt(rec,2)} · accuracy ${fmt(acc,2)}`;
+
+const testH = R.test.hallucinations, testT = R.test.total;
+const testC = testT - testH;
+const hPct  = (testH/testT*100).toFixed(1), cPct = (testC/testT*100).toFixed(1);
+document.getElementById('test-correct').textContent = fmtInt(testC);
+document.getElementById('test-hall').textContent    = fmtInt(testH);
+document.getElementById('test-bar').innerHTML =
+  `<div style="width:${cPct}%;background:#4a8c1c"></div><div style="width:${hPct}%;background:#d64040"></div>`;
+document.getElementById('test-legend').innerHTML =
+  `<span><div class="sq" style="background:#4a8c1c"></div>correct (${cPct}%)</span>
+   <span><div class="sq" style="background:#d64040"></div>hallucination (${hPct}%)</span>`;
+
+// ── Data analysis ─────────────────────────────────────────────────
+const eda = R.eda;
+document.getElementById('eda-kpis').innerHTML = `
+  <div class="metric"><div class="val" style="color:#2a6fcf">${fmtInt(eda.class_dist['0'])}</div><div class="lbl">correct answers</div></div>
+  <div class="metric"><div class="val" style="color:#d64040">${fmtInt(eda.class_dist['1'])}</div><div class="lbl">hallucinations</div></div>
+  <div class="metric"><div class="val">17.7:1</div><div class="lbl">class imbalance</div></div>
+`;
+
+const statEl = document.getElementById('stat-bars');
+const statData = [
+  {lbl:'correct mean',  val: eda.ans_words_mean['0'],  max: 120, col:'#2a6fcf'},
+  {lbl:'halluci. mean', val: eda.ans_words_mean['1'],  max: 120, col:'#d64040'},
+];
+statData.forEach(s => {
+  statEl.innerHTML += `<div class="bar-row"><div class="bar-lbl bar-lbl-lg">${s.lbl}</div><div class="bar-track"><div class="bar-fill" style="width:${(s.val/s.max*100).toFixed(1)}%;background:${s.col}"></div></div><div class="bar-val">${s.val.toFixed(1)}</div></div>`;
+});
+statEl.innerHTML += `<div style="font-size:12px;color:var(--text2);margin:10px 0 8px;font-weight:500">repetition score</div>`;
+[['correct', eda.rep_mean['0'], '#2a6fcf'], ['hallucination', eda.rep_mean['1'], '#d64040']].forEach(([l,v,c]) => {
+  statEl.innerHTML += `<div class="bar-row"><div class="bar-lbl bar-lbl-lg">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${(v*200).toFixed(1)}%;background:${c}"></div></div><div class="bar-val">${v.toFixed(3)}</div></div>`;
+});
+statEl.innerHTML += `<div style="font-size:12px;color:var(--text2);margin:10px 0 8px;font-weight:500">mean char length</div>`;
+[['correct', eda.ans_len_mean['0'], '#2a6fcf', 700], ['hallucination', eda.ans_len_mean['1'], '#d64040', 700]].forEach(([l,v,c,mx]) => {
+  statEl.innerHTML += `<div class="bar-row"><div class="bar-lbl bar-lbl-lg">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${(v/mx*100).toFixed(1)}%;background:${c}"></div></div><div class="bar-val">${Math.round(v)}</div></div>`;
+});
+
+new Chart(document.getElementById('histChart'), {
+  type: 'bar',
+  data: {
+    labels: eda.word_hist_0.edges.slice(0,-1).map((v,i) => Math.round(v) + '–' + Math.round(eda.word_hist_0.edges[i+1])),
+    datasets: [
+      {label:'correct',      data: eda.word_hist_0.counts, backgroundColor:'rgba(42,111,207,0.75)'},
+      {label:'hallucination', data: eda.word_hist_1.counts, backgroundColor:'rgba(214,64,64,0.75)'}
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{ x:{ticks:{font:{size:10},maxRotation:35}}, y:{ticks:{font:{size:10}}}}
+  }
+});
+
+new Chart(document.getElementById('classChart'), {
+  type: 'bar',
+  data: {
+    labels: ['correct (0)', 'hallucination (1)'],
+    datasets: [{data:[eda.class_dist['0'], eda.class_dist['1']], backgroundColor:['#2a6fcf','#d64040']}]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{ y:{ticks:{callback:v=>v.toLocaleString(), font:{size:10}}}}
+  }
+});
+
+// ── Performance charts ─────────────────────────────────────────────
+function drawPerf() {
+  const rocPts = R.roc_curve;
+  new Chart(document.getElementById('rocChart'), {
+    type:'line',
+    data:{
+      labels: rocPts.map(d=>d.fpr.toFixed(2)),
+      datasets:[
+        {label:'ROC',data:rocPts.map(d=>d.tpr),borderColor:'#2a6fcf',backgroundColor:'rgba(42,111,207,0.07)',fill:true,tension:0.4,pointRadius:0},
+        {label:'random',data:rocPts.map(d=>d.fpr),borderColor:'#ccc',borderDash:[4,4],pointRadius:0}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},title:{display:true,text:`AUC = ${fmt(R.oof_roc_auc)}`,font:{size:12}}},
+      scales:{x:{title:{display:true,text:'false positive rate',font:{size:11}}},y:{min:0,max:1,title:{display:true,text:'true positive rate',font:{size:11}}}}
+    }
+  });
+
+  const prPts = R.pr_curve;
+  new Chart(document.getElementById('prChart'), {
+    type:'line',
+    data:{
+      labels: prPts.map(d=>d.recall.toFixed(2)),
+      datasets:[{label:'PR',data:prPts.map(d=>d.precision),borderColor:'#d64040',backgroundColor:'rgba(214,64,64,0.07)',fill:true,tension:0.4,pointRadius:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},title:{display:true,text:`AP = ${fmt(R.oof_avg_precision)}`,font:{size:12}}},
+      scales:{x:{title:{display:true,text:'recall',font:{size:11}},reverse:true},y:{min:0,max:0.7,title:{display:true,text:'precision',font:{size:11}}}}
+    }
+  });
+
+  new Chart(document.getElementById('foldChart'), {
+    type:'bar',
+    data:{
+      labels: R.fold_stats.map(f=>'fold '+f.fold),
+      datasets:[
+        {label:'ROC-AUC',data:R.fold_stats.map(f=>f.roc_auc),backgroundColor:'#2a6fcf'},
+        {label:'F1',data:R.fold_stats.map(f=>f.f1),backgroundColor:'#d64040'},
+        {label:'avg prec',data:R.fold_stats.map(f=>f.avg_precision),backgroundColor:'#4a8c1c'}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{min:0,max:0.95,ticks:{callback:v=>v.toFixed(2),font:{size:10}}}}
+    }
+  });
+}
+
+// ── Threshold tuner ────────────────────────────────────────────────
+function drawThr() {
+  const sw = R.threshold_sweep;
+  const thrChart = new Chart(document.getElementById('thrChart'), {
+    type:'line',
+    data:{
+      labels: sw.map(d=>d.threshold.toFixed(3)),
+      datasets:[
+        {label:'F1',        data:sw.map(d=>d.f1),        borderColor:'#2a6fcf',tension:0.3,pointRadius:3},
+        {label:'precision', data:sw.map(d=>d.precision), borderColor:'#4a8c1c',tension:0.3,pointRadius:2,borderDash:[5,3]},
+        {label:'recall',    data:sw.map(d=>d.recall),    borderColor:'#d64040',tension:0.3,pointRadius:2,borderDash:[2,3]}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:'threshold',font:{size:11}},ticks:{maxTicksLimit:10}},y:{min:0,max:1}}
+    }
+  });
+
+  function updateThr(t) {
+    const closest = sw.reduce((a,b) => Math.abs(b.threshold-t) < Math.abs(a.threshold-t) ? b : a);
+    document.getElementById('tF1').textContent   = closest.f1.toFixed(3);
+    document.getElementById('tPrec').textContent = closest.precision.toFixed(3);
+    document.getElementById('tRec').textContent  = closest.recall.toFixed(3);
+    document.getElementById('liveTN').textContent = closest.tn.toLocaleString();
+    document.getElementById('liveFP').textContent = closest.fp.toLocaleString();
+    document.getElementById('liveFN').textContent = closest.fn.toLocaleString();
+    document.getElementById('liveTP').textContent = closest.tp.toLocaleString();
+  }
+
+  const slider = document.getElementById('thrSlider');
+  slider.value = R.optimal_threshold;
+  document.getElementById('thrVal').textContent = parseFloat(R.optimal_threshold).toFixed(3);
+  updateThr(R.optimal_threshold);
+
+  slider.addEventListener('input', function() {
+    const t = parseFloat(this.value);
+    document.getElementById('thrVal').textContent = t.toFixed(3);
+    updateThr(t);
+  });
+}
+
+// ── Features ───────────────────────────────────────────────────────
+function drawFeatures() {
+  new Chart(document.getElementById('featDonut'), {
+    type:'doughnut',
+    data:{
+      labels:['char n-grams','word n-grams','engineered'],
+      datasets:[{data:[R.feature_counts.char_ngrams, R.feature_counts.word_ngrams, R.feature_counts.engineered],
+                  backgroundColor:['#2a6fcf','#888880','#4a8c1c'],borderWidth:0}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'62%'}
+  });
+
+  const feats = [
+    ['char_len',       94], ['repetition',    80], ['kw_overlap',     68],
+    ['len_ratio',      58], ['word_count',     50], ['sent_count',     42],
+    ['proper_nouns',   34], ['hedge_count',    26], ['is_very_short',  18], ['caps_ratio', 12]
+  ];
+  const fbEl = document.getElementById('feat-bars');
+  feats.forEach(([nm, pct]) => {
+    fbEl.innerHTML += `<div class="feat-row"><div class="feat-nm">${nm}</div><div class="feat-track"><div class="feat-fill" style="width:${pct}%;background:#2a6fcf"></div></div></div>`;
+  });
+
+  new Chart(document.getElementById('ablChart'), {
+    type:'bar',
+    data:{
+      labels:['engineered only','word TF-IDF only','char TF-IDF only','char + word','full (all 3)'],
+      datasets:[{data:[0.52,0.53,0.791,0.792,0.794],
+        backgroundColor:['#b5d4f4','#b5d4f4','#378add','#185fa5','#0c447c']}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{x:{min:0.40,max:0.85,ticks:{callback:v=>v.toFixed(2),font:{size:10}}},y:{ticks:{font:{size:11}}}}
+    }
+  });
+}
+
+// ── Pipeline ───────────────────────────────────────────────────────
+const steps = [
+  ['Data ingestion',       'train.csv + test.csv · NaN fill · type cast'],
+  ['Char TF-IDF (3–5)',    '4,000 features · sublinear_tf · char_wb · min_df=5'],
+  ['Word TF-IDF (1–3)',    '3,000 features · sublinear_tf · word · min_df=3'],
+  ['17 engineered feats',  'length · repetition · overlap · hedging · structure'],
+  ['Sparse concat → LR',   'class_weight=balanced · C=1.0 · liblinear'],
+  ['Threshold optimise',   `sweep 0.05→0.95 · optimal ${fmt(R.optimal_threshold,3)} by OOF F1`],
+];
+const stepsEl = document.getElementById('pipeline-steps');
+steps.forEach(([t,s],i) => {
+  stepsEl.innerHTML += `<div class="step"><div class="step-n">${i+1}</div><div class="step-body">${t}<small>${s}</small></div></div>`;
+});
+
+const configs = [
+  ['classifier',    'Logistic Regression'],
+  ['solver',        'liblinear'],
+  ['regularisation','C = 1.0 (L2)'],
+  ['class weights', 'balanced'],
+  ['cross-val',     `${R.fold_stats.length}-fold stratified`],
+  ['threshold',     fmt(R.optimal_threshold, 3)],
+  ['total features',fmtInt(R.feature_counts.total)],
+  ['ROC-AUC',       `${fmt(R.oof_roc_auc)} ± ${fmt(R.oof_roc_std,3)}`],
+];
+const cfgEl = document.getElementById('model-config');
+configs.forEach(([k,v]) => {
+  cfgEl.innerHTML += `<div class="info-row"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+});
+</script>
+</body>
+</html>
